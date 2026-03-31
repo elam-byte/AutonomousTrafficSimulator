@@ -1,3 +1,7 @@
+# Project name fixes the Docker network to "ats_default",
+# which vehicle-orchestrator uses when creating per-vehicle containers.
+name: ats
+
 services:
   nats:
     image: nats:latest
@@ -50,10 +54,15 @@ services:
       - nats
     restart: unless-stopped
 
-  # NOTE: vehicle-agent containers are no longer defined statically here.
-  # The vehicle-orchestrator creates one container per vehicle when the map loads.
-  # Containers are named "vehicle-{id}" and join the ats_default network.
-  # To pre-build the image: docker build -t vehicle-agent:latest ./vehicle-agent
+  # vehicle-agent image builder — not started automatically.
+  # Defining it here ensures `docker compose build` tags it as vehicle-agent:latest
+  # so the orchestrator can find it when creating per-vehicle containers.
+  vehicle-agent:
+    build:
+      context: ./vehicle-agent
+    image: vehicle-agent:latest
+    profiles:
+      - build   # only starts with: docker compose --profile build up vehicle-agent
 
 volumes:
   maps_data:
