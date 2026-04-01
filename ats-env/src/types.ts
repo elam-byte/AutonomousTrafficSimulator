@@ -49,10 +49,16 @@ export interface MapMeta {
   world: { width: number; height: number };
 }
 
+export interface LaneConnection {
+  from: string;   // lane edge ID e.g. "r-14:left"
+  to: string[];   // successor lane edge IDs
+}
+
 export interface AtsMap {
   meta: MapMeta;
   roads: Road[];
   vehicles: MapVehicle[];
+  connections?: LaneConnection[]; // explicit lane-to-lane wiring for junctions
 }
 
 // ─── Runtime Vehicle State ───────────────────────────────────────────────────

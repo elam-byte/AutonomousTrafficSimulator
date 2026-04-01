@@ -12,7 +12,8 @@ import type {
   JunctionInfo,
 } from "./types.js";
 
-const DEFAULT_SPEED_LIMIT = 14; // m/s ≈ 50 km/h
+const SPEED_LIMIT_STRAIGHT = 20 / 3.6; // 20 km/h → ~5.56 m/s
+const SPEED_LIMIT_ARC     = 10 / 3.6; // 10 km/h → ~2.78 m/s
 const SAMPLE_STEP = 1.0; // meters between samples
 const CONNECT_TOLERANCE = 1.0; // meters for endpoint matching
 const CONNECT_ANGLE_DEG = 30; // degrees max heading difference for connection
@@ -100,11 +101,12 @@ function sampleArc(road: ArcRoad, side: "right" | "left"): SampledPoint[] {
   if (arcLen < 0.01) return [];
 
   // Lane radius offset:
-  // For a CCW arc (traversed CCW), right side = inside (smaller radius), left side = outside
+  // For a CCW arc (traversed CCW), right side = outside (larger radius), left side = inside.
+  // Physical reasoning: facing forward along the arc, your right hand points outward.
   // For a CW arc, it is the opposite.
   const sign = road.clockwise ? -1 : 1; // +1 for CCW, -1 for CW
-  const rightRadius = road.radius - sign * (road.lanes.laneWidth / 2);
-  const leftRadius = road.radius + sign * (road.lanes.laneWidth / 2);
+  const rightRadius = road.radius + sign * (road.lanes.laneWidth / 2);
+  const leftRadius = road.radius - sign * (road.lanes.laneWidth / 2);
 
   const laneRadius = side === "right" ? rightRadius : leftRadius;
   if (laneRadius <= 0) return []; // degenerate
@@ -229,7 +231,7 @@ export function buildGraph(map: AtsMap): RoadGraph {
         direction: side,
         points,
         length: len,
-        speedLimit: DEFAULT_SPEED_LIMIT,
+        speedLimit: road.kind === "arc" ? SPEED_LIMIT_ARC : SPEED_LIMIT_STRAIGHT,
         width: road.lanes.laneWidth,
         next: [],
         prev: [],
@@ -238,6 +240,24 @@ export function buildGraph(map: AtsMap): RoadGraph {
   }
 
   buildConnectivity(edges);
+
+  // Apply explicit lane connections from map (e.g. junction wiring)
+  for (const conn of map.connections ?? []) {
+    const fromEdge = edges.get(conn.from);
+    if (!fromEdge) {
+      console.warn(`[roadGraph] Explicit connection: source edge "${conn.from}" not found`);
+      continue;
+    }
+    for (const toId of conn.to) {
+      const toEdge = edges.get(toId);
+      if (!toEdge) {
+        console.warn(`[roadGraph] Explicit connection: target edge "${toId}" not found`);
+        continue;
+      }
+      if (!fromEdge.next.includes(toId)) fromEdge.next.push(toId);
+      if (!toEdge.prev.includes(conn.from)) toEdge.prev.push(conn.from);
+    }
+  }
 
   // Log connectivity summary
   for (const edge of edges.values()) {

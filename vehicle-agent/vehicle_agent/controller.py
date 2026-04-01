@@ -2,16 +2,30 @@ import math
 import random
 from .types import VehicleObservation, VehicleCommand, LanePoint, JunctionChoice
 
-TARGET_SPEED = float(__import__("os").environ.get("TARGET_SPEED", "8.0"))
-SPEED_KP = 0.8      # proportional gain for speed control
-ACCEL_MIN = -4.0
-ACCEL_MAX = 2.0
-STEER_MIN = -0.5
-STEER_MAX = 0.5
-MIN_LOOKAHEAD = 8.0  # meters
+# Speed control
+SPEED_KP         = 1.2    # proportional gain for speed tracking
+ACCEL_MIN        = -4.0
+ACCEL_MAX        = 2.0
+
+# Steering limits (rad/s — bicycle model)
+STEER_MIN        = -0.5
+STEER_MAX        = 0.5
+
+# Stanley controller gains
+# Higher K_LATERAL → more aggressive lateral centering (recommended 1.5–3.0)
+K_LATERAL        = 2.5
+# Softening constant: prevents division-by-zero at standstill
+K_SOFT           = 0.3
+
+# Pre-braking: scan this many corridor points ahead for upcoming speed limits.
+# At 1 m/point this is a ~20 m lookahead — enough to pre-slow before an arc.
+PREBRAKE_HORIZON = 20
+
+# Lateral speed penalty: reduce target speed when off-centre.
+# 0.5 means: at 1 m off-centre → 50 % speed reduction; at 0.5 m → 25 %.
+K_LAT_SPEED      = 0.5
 
 # In-process sticky junction choices: at_edge → chosen next edge ID
-# This state lives in the container (not persisted) — valid per CLAUDE.md design.
 _junction_choices: dict[str, str] = {}
 
 
@@ -29,65 +43,73 @@ def _clamp(v: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, v))
 
 
-def _find_lookahead(
-    obs: VehicleObservation, corridor: list[LanePoint], distance: float
-) -> LanePoint:
-    """Walk the corridor until cumulative arc-length >= distance."""
-    cumulative = 0.0
-    prev_x, prev_y = obs.x, obs.y
+def _find_nearest(
+    obs: VehicleObservation, corridor: list[LanePoint]
+) -> tuple[LanePoint, float]:
+    """Return the nearest corridor point and the signed lateral error.
+
+    Lateral error convention (matches Stanley paper):
+      > 0  →  vehicle is to the RIGHT of the lane centreline
+      < 0  →  vehicle is to the LEFT
+    """
+    best_sq  = float("inf")
+    best_pt  = corridor[0]
+    best_lat = 0.0
+
     for pt in corridor:
-        dx = pt.x - prev_x
-        dy = pt.y - prev_y
-        cumulative += math.sqrt(dx * dx + dy * dy)
-        prev_x, prev_y = pt.x, pt.y
-        if cumulative >= distance:
-            return pt
-    return corridor[-1]
+        dx = obs.x - pt.x
+        dy = obs.y - pt.y
+        sq = dx * dx + dy * dy
+        if sq < best_sq:
+            best_sq  = sq
+            best_pt  = pt
+            # right-of-heading unit vector: (sin h, −cos h)
+            best_lat = dx * math.sin(pt.heading) - dy * math.cos(pt.heading)
+
+    return best_pt, best_lat
 
 
 def compute_command(obs: VehicleObservation) -> VehicleCommand:
     corridor = obs.lane_corridor
 
     if not corridor:
-        # No corridor — gentle brake, hold straight
-        return VehicleCommand(
-            t=obs.t, id=obs.id, desired_accel=-2.0, desired_steer=0.0
-        )
+        # No corridor — brake gently and hold heading
+        return VehicleCommand(t=obs.t, id=obs.id, desired_accel=-2.0, desired_steer=0.0)
 
     # ── Junction routing ──────────────────────────────────────────────────────
     junction_choice: JunctionChoice | None = None
     if obs.junction is not None:
         j = obs.junction
         if j.at_edge not in _junction_choices:
-            # First time seeing this junction — pick randomly and remember
-            pick = random.choice(j.choices)
-            _junction_choices[j.at_edge] = pick
+            _junction_choices[j.at_edge] = random.choice(j.choices)
         committed = _junction_choices[j.at_edge]
-        # Always echo back the choice so ats-env can record/update it
         junction_choice = JunctionChoice(at_edge=j.at_edge, choice=committed)
 
-    # ── Adaptive lookahead ────────────────────────────────────────────────────
-    lookahead_dist = max(MIN_LOOKAHEAD, obs.speed * 1.5)
-    target = _find_lookahead(obs, corridor, lookahead_dist)
+    # ── Stanley lane-centering steering ──────────────────────────────────────
+    # Find nearest corridor point and compute lateral deviation
+    nearest, lateral_error = _find_nearest(obs, corridor)
 
-    # ── Pure pursuit steering ─────────────────────────────────────────────────
-    dx = target.x - obs.x
-    dy = target.y - obs.y
-    desired_heading = math.atan2(dy, dx)
-    heading_error = _normalize_angle(desired_heading - obs.heading)
+    # Heading error: how much we need to rotate to match the lane heading
+    # Positive → need to turn left (CCW), negative → need to turn right
+    heading_error = _normalize_angle(nearest.heading - obs.heading)
 
-    if obs.speed < 0.5:
-        # At very low speed, steer directly toward the path heading
-        desired_steer = _clamp(heading_error * 0.3, STEER_MIN, STEER_MAX)
-    else:
-        # Pure pursuit: κ = 2*sin(α) / L,  ω = κ*v  →  steer ≈ ω (for bicycle model)
-        curvature = 2.0 * math.sin(heading_error) / lookahead_dist
-        desired_steer = _clamp(curvature * obs.speed, STEER_MIN, STEER_MAX)
+    # Stanley cross-track correction:
+    #   δ_ct = atan(K_LATERAL * e / (v + K_SOFT))
+    # Positive e (vehicle right of centre) → positive correction → steer left ✓
+    steer_ct = math.atan2(K_LATERAL * lateral_error, obs.speed + K_SOFT)
 
-    # ── Speed control (proportional) ──────────────────────────────────────────
-    target_speed = min(TARGET_SPEED, corridor[0].speed_limit)
-    speed_error = target_speed - obs.speed
-    desired_accel = _clamp(speed_error * SPEED_KP, ACCEL_MIN, ACCEL_MAX)
+    desired_steer = _clamp(heading_error + steer_ct, STEER_MIN, STEER_MAX)
+
+    # ── Speed control with pre-braking ───────────────────────────────────────
+    # Scan upcoming corridor for minimum speed limit (pre-slow before arcs/junctions)
+    horizon     = corridor[:PREBRAKE_HORIZON]
+    ahead_limit = min(pt.speed_limit for pt in horizon)
+
+    # Reduce target speed when laterally displaced — slowing improves cornering
+    lat_factor  = max(0.4, 1.0 - K_LAT_SPEED * abs(lateral_error))
+
+    target_speed  = ahead_limit * lat_factor
+    desired_accel = _clamp((target_speed - obs.speed) * SPEED_KP, ACCEL_MIN, ACCEL_MAX)
 
     return VehicleCommand(
         t=obs.t,

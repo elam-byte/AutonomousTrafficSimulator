@@ -41,6 +41,11 @@ const MapVehicleSchema = z.object({
   color: z.string().optional(),
 });
 
+const LaneConnectionSchema = z.object({
+  from: z.string(),
+  to: z.array(z.string()),
+});
+
 const AtsMapSchema = z.object({
   meta: z.object({
     version: z.string(),
@@ -51,6 +56,7 @@ const AtsMapSchema = z.object({
   junctions: z.array(z.unknown()).optional(),
   roads: z.array(RoadSchema),
   vehicles: z.array(MapVehicleSchema),
+  connections: z.array(LaneConnectionSchema).optional(),
 });
 
 export function loadMap(path: string): AtsMap {

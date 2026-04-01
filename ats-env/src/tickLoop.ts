@@ -7,7 +7,7 @@ import { publishObservation, publishSnapshot } from "./natsClient.js";
 
 const TICK_MS = 50; // 20 Hz
 const CMD_STALE_MS = 250;
-const DEFAULT_SPEED_LIMIT = 14; // m/s
+const DEFAULT_SPEED_LIMIT = 20 / 3.6; // 20 km/h fallback when no corridor
 const SAFE_CMD = { desired_accel: -2, desired_steer: 0 } as const;
 
 interface CommandEntry {
