@@ -11,23 +11,6 @@
   "junctions": [],
   "roads": [
     {
-      "id": "r-1",
-      "kind": "line",
-      "start": {
-        "x": 170,
-        "y": 220
-      },
-      "end": {
-        "x": 270,
-        "y": 220
-      },
-      "lanes": {
-        "left": 1,
-        "right": 1,
-        "laneWidth": 3.5
-      }
-    },
-    {
       "id": "r-3",
       "kind": "arc",
       "center": {
@@ -140,6 +123,23 @@
       "startAngle": 0,
       "endAngle": 1.5707963267948966,
       "clockwise": false,
+      "lanes": {
+        "left": 1,
+        "right": 1,
+        "laneWidth": 3.5
+      }
+    },
+    {
+      "id": "r-15",
+      "kind": "line",
+      "start": {
+        "x": 270,
+        "y": 220
+      },
+      "end": {
+        "x": 170,
+        "y": 220
+      },
       "lanes": {
         "left": 1,
         "right": 1,
