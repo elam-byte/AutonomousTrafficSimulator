@@ -1,0 +1,161 @@
+{
+  "meta": {
+    "version": "ats-map-v1",
+    "unit": "m",
+    "origin": "bottom-left",
+    "world": {
+      "width": 500,
+      "height": 281
+    }
+  },
+  "junctions": [],
+  "roads": [
+    {
+      "id": "r-1",
+      "kind": "line",
+      "start": {
+        "x": 170,
+        "y": 220
+      },
+      "end": {
+        "x": 270,
+        "y": 220
+      },
+      "lanes": {
+        "left": 1,
+        "right": 1,
+        "laneWidth": 3.5
+      }
+    },
+    {
+      "id": "r-3",
+      "kind": "arc",
+      "center": {
+        "x": 170,
+        "y": 210
+      },
+      "radius": 10,
+      "startAngle": 1.5707963267948966,
+      "endAngle": 3.141592653589793,
+      "clockwise": false,
+      "lanes": {
+        "left": 1,
+        "right": 1,
+        "laneWidth": 3.5
+      }
+    },
+    {
+      "id": "r-4",
+      "kind": "line",
+      "start": {
+        "x": 160,
+        "y": 210
+      },
+      "end": {
+        "x": 160,
+        "y": 150
+      },
+      "lanes": {
+        "left": 1,
+        "right": 1,
+        "laneWidth": 3.5
+      }
+    },
+    {
+      "id": "r-5",
+      "kind": "arc",
+      "center": {
+        "x": 170,
+        "y": 150
+      },
+      "radius": 10,
+      "startAngle": 3.141592653589793,
+      "endAngle": -1.5707963267948966,
+      "clockwise": false,
+      "lanes": {
+        "left": 1,
+        "right": 1,
+        "laneWidth": 3.5
+      }
+    },
+    {
+      "id": "r-6",
+      "kind": "line",
+      "start": {
+        "x": 170,
+        "y": 140
+      },
+      "end": {
+        "x": 270,
+        "y": 140
+      },
+      "lanes": {
+        "left": 1,
+        "right": 1,
+        "laneWidth": 3.5
+      }
+    },
+    {
+      "id": "r-7",
+      "kind": "arc",
+      "center": {
+        "x": 270,
+        "y": 150
+      },
+      "radius": 10,
+      "startAngle": -1.5707963267948966,
+      "endAngle": 0,
+      "clockwise": false,
+      "lanes": {
+        "left": 1,
+        "right": 1,
+        "laneWidth": 3.5
+      }
+    },
+    {
+      "id": "r-8",
+      "kind": "line",
+      "start": {
+        "x": 280,
+        "y": 150
+      },
+      "end": {
+        "x": 280,
+        "y": 210
+      },
+      "lanes": {
+        "left": 1,
+        "right": 1,
+        "laneWidth": 3.5
+      }
+    },
+    {
+      "id": "r-9",
+      "kind": "arc",
+      "center": {
+        "x": 270,
+        "y": 210
+      },
+      "radius": 10,
+      "startAngle": 0,
+      "endAngle": 1.5707963267948966,
+      "clockwise": false,
+      "lanes": {
+        "left": 1,
+        "right": 1,
+        "laneWidth": 3.5
+      }
+    }
+  ],
+  "vehicles": [
+    {
+      "id": "v-10",
+      "x": 181,
+      "y": 218,
+      "heading": 0,
+      "length": 3,
+      "width": 1.5,
+      "color": "#22c55e"
+    }
+  ]
+}
